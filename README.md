@@ -7,3 +7,6 @@ Lab project for TTTC3213. KedaiBuku.my is a fictional Malaysian online bookstore
 2. In your new repository, click **Code** → **Codespaces** → **Create codespace on main**.
 3. Wait 5–8 minutes for the first setup to finish ("Setup complete" in the Terminal).
 4. Stop your codespace after every lab: **Codespaces** (bottom left) → **Stop Current Codespace**.
+
+Lab 1 step 3:
+The .env file stores real sensitive information for our local use, while .env.example does not contain actual values, it is only a configuration template.

@@ -22,8 +22,7 @@ services:
       retries: 5
 
   objectstore:
-    image: quay.io/minio/minio
-    command: server /data --console-address ":9001"
+    image: bitnamilegacy/minio:latest
     ports:
       - "19000:9000"
       - "19001:9001"
@@ -31,7 +30,7 @@ services:
       MINIO_ROOT_USER: kedai-admin
       MINIO_ROOT_PASSWORD: ChangeMe12345
     volumes:
-      - miniodata:/data
+      - miniodata:/bitnami/minio/data
 
 volumes:
   pgdata:

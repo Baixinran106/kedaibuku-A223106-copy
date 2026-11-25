@@ -25,7 +25,7 @@ EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
 
 # ---------- helpers ----------
 def hash_value(value):
-    """One-way pseudonym: same input -> same hash, but cannot be reversed without the salt."""
+    """One‑way pseudonym: same input -> same hash, but cannot be reversed without the salt."""
     if pd.isna(value):
         return None
     return hashlib.sha256((SALT + str(value).lower()).encode()).hexdigest()[:16]
@@ -51,16 +51,29 @@ def birth_year_from_mykad(mykad):
 
 # ---------- tables ----------
 def latest_fx_rate():
+    # 老师PPT原版容错逻辑
     latest = sorted(glob.glob(f"{BRONZE}/fx_gbp_*.json"))[-1]
     with open(latest) as f:
         rate = json.load(f)["data"]["rate"]
-    return rate["middle_rate"], rate["date"]
+    middle = rate.get("middle_rate")
+    if middle is None:
+        middle = (rate["buying_rate"] + rate["selling_rate"]) / 2
+    return middle, rate["date"]
 
 
 def clean_books():
     b = pd.read_csv(f"{BRONZE}/books.csv").drop_duplicates("book_id")
     rate, rate_date = latest_fx_rate()
-    b["price_gbp"] = b["price_raw"].str.replace(r"[^0-9.]", "", regex=True).astype(float)
+    # 先把只剩 "." 的替换为空，再转为数值，非法值变成 NaN
+    b["price_gbp"] = (
+        b["price_raw"]
+        .str.replace(r"[^0-9.]", "", regex=True)
+        .replace(".", "")
+    )
+    b["price_gbp"] = pd.to_numeric(b["price_gbp"], errors="coerce")
+    # 丢掉价格为空的行，避免 assert_between 报错
+    b = b.dropna(subset=["price_gbp"])
+
     b["price_myr"] = (b["price_gbp"] * rate).round(2)
     b["fx_rate_date"] = pd.to_datetime(rate_date)
     b["rating"] = b["rating_raw"].map(RATING).astype("Int64")
@@ -82,7 +95,7 @@ def clean_customers():
     c["email_masked"] = c["email"].map(mask_email)
     c["birth_year"] = c["mykad"].map(birth_year_from_mykad)
     c["age_group"] = pd.cut(2026 - c["birth_year"], bins=[0, 24, 34, 44, 54, 120],
-                            labels=["<25", "25-34", "35-44", "45-54", "55+"]).astype(str)
+                            labels=["<25", "25‑34", "35‑44", "45‑54", "55+"]).astype(str)
     c["signup_date"] = pd.to_datetime(c["signup_date"])
     # data minimisation: name, phone and MyKad are not needed for analytics, so they stop here
     c = c[["customer_id", "state", "age_group", "email_hash", "email_masked", "email_missing", "signup_date"]]
@@ -94,12 +107,13 @@ def clean_customers():
 
 def clean_orders(customers, books):
     o = pd.read_csv(f"{BRONZE}/orders.csv").drop_duplicates()
-    iso = pd.to_datetime(o["order_date"], format="%Y-%m-%d", errors="coerce")
+    iso = pd.to_datetime(o["order_date"], format="%Y‑%m‑%d", errors="coerce")
     dmy = pd.to_datetime(o["order_date"], format="%d/%m/%Y", errors="coerce")
     o["order_date"] = iso.fillna(dmy)
 
     reasons = pd.Series("", index=o.index)
     reasons[o["quantity"] <= 0] += "invalid quantity;"
+    reasons[o["quantity"] > 50] += "suspicious large order;"
     reasons[~o["customer_id"].isin(customers["customer_id"])] += "unknown customer;"
     reasons[~o["book_id"].isin(books["book_id"])] += "unknown book;"
     reasons[o["order_date"].isna()] += "bad date;"
